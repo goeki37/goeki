@@ -20,7 +20,8 @@ sourceCompatibility = targetCompatibility = "1.8"
 
 minecraft {
     version = "1.8.9-11.15.1.2318-1.8.9"
-    runDir = "run"
+    runDir = "run" 
+    mappings = "stable_22"
 }
 
 sourceSets.main.java.srcDir "../common/src/main/java"
