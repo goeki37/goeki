@@ -1,0 +1,9 @@
+[
+  {
+    "modid": "goekiclient",
+    "name": "Goeki Client",
+    "description": "A lightweight, original PvP utility client.",
+    "version": "${version}",
+    "mcversion": "1.8.9"
+  }
+]
