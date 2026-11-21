@@ -25,13 +25,38 @@ jobs:
         run: |
           wget -q https://services.gradle.org/distributions/gradle-${{ matrix.gradle }}-bin.zip
           unzip -q gradle-${{ matrix.gradle }}-bin.zip
-      - name: Fix 1.7.10 asset index
+      - name: Fix dead Mojang download links (1.7.10 only)
         if: matrix.mc == '1.7.10'
         run: |
-          mkdir -p ~/.gradle/caches/minecraft/assets/indexes
+          set -e
+          # 1. Get the real download links from Mojang's current servers
           URL=$(curl -s https://launchermeta.mojang.com/mc/game/version_manifest.json | jq -r '.versions[] | select(.id=="1.7.10") | .url')
-          AI=$(curl -s "$URL" | jq -r '.assetIndex.url')
-          curl -s "$AI" -o ~/.gradle/caches/minecraft/assets/indexes/1.7.10.json
+          curl -s "$URL" -o v.json
+          D=www/Minecraft.Download
+          mkdir -p $D/versions/1.7.10 $D/indexes
+          curl -s "$(jq -r '.assetIndex.url' v.json)" -o $D/indexes/1.7.10.json
+          curl -s "$(jq -r '.downloads.client.url' v.json)" -o $D/versions/1.7.10/1.7.10.jar
+          curl -s "$(jq -r '.downloads.server.url' v.json)" -o $D/versions/1.7.10/minecraft_server.1.7.10.jar
+          ls -l $D/indexes $D/versions/1.7.10
+          # 2. Local stand-in for the dead old address (s3.amazonaws.com), http and https
+          openssl req -x509 -newkey rsa:2048 -nodes -keyout k.pem -out c.pem -days 2 -subj "/CN=s3.amazonaws.com" -addext "subjectAltName=DNS:s3.amazonaws.com"
+          CACERTS=$(find "$JAVA_HOME" -name cacerts | head -1)
+          sudo keytool -importcert -noprompt -trustcacerts -alias fakes3 -file c.pem -keystore "$CACERTS" -storepass changeit
+          cat > serve.py <<'PY'
+          import functools, http.server, ssl, threading
+          handler = functools.partial(http.server.SimpleHTTPRequestHandler, directory="www")
+          http_srv = http.server.ThreadingHTTPServer(("127.0.0.1", 80), handler)
+          https_srv = http.server.ThreadingHTTPServer(("127.0.0.1", 443), handler)
+          ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+          ctx.load_cert_chain("c.pem", "k.pem")
+          https_srv.socket = ctx.wrap_socket(https_srv.socket, server_side=True)
+          threading.Thread(target=http_srv.serve_forever, daemon=True).start()
+          https_srv.serve_forever()
+          PY
+          echo "127.0.0.1 s3.amazonaws.com" | sudo tee -a /etc/hosts
+          (sudo setsid python3 serve.py > serve.log 2>&1 < /dev/null &)
+          sleep 3
+          curl -sI http://s3.amazonaws.com/Minecraft.Download/versions/1.7.10/1.7.10.jar | head -1
       - name: Build ${{ matrix.mc }}
         working-directory: forge-${{ matrix.mc }}
         run: |
