@@ -25,6 +25,13 @@ jobs:
         run: |
           wget -q https://services.gradle.org/distributions/gradle-${{ matrix.gradle }}-bin.zip
           unzip -q gradle-${{ matrix.gradle }}-bin.zip
+      - name: Fix 1.7.10 asset index
+        if: matrix.mc == '1.7.10'
+        run: |
+          mkdir -p ~/.gradle/caches/minecraft/assets/indexes
+          URL=$(curl -s https://launchermeta.mojang.com/mc/game/version_manifest.json | jq -r '.versions[] | select(.id=="1.7.10") | .url')
+          AI=$(curl -s "$URL" | jq -r '.assetIndex.url')
+          curl -s "$AI" -o ~/.gradle/caches/minecraft/assets/indexes/1.7.10.json
       - name: Build ${{ matrix.mc }}
         working-directory: forge-${{ matrix.mc }}
         run: |
