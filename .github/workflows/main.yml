@@ -1,0 +1,36 @@
+name: Build Goeki
+
+on:
+  workflow_dispatch:
+  push:
+
+jobs:
+  build:
+    runs-on: ubuntu-22.04
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - mc: "1.8.9"
+            gradle: "2.7"
+          - mc: "1.7.10"
+            gradle: "1.12"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "8"
+      - name: Download Gradle ${{ matrix.gradle }}
+        run: |
+          wget -q https://services.gradle.org/distributions/gradle-${{ matrix.gradle }}-bin.zip
+          unzip -q gradle-${{ matrix.gradle }}-bin.zip
+      - name: Build ${{ matrix.mc }}
+        working-directory: forge-${{ matrix.mc }}
+        run: |
+          ../gradle-${{ matrix.gradle }}/bin/gradle --no-daemon setupDecompWorkspace
+          ../gradle-${{ matrix.gradle }}/bin/gradle --no-daemon build
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Goeki-${{ matrix.mc }}
+          path: forge-${{ matrix.mc }}/build/libs/*.jar
